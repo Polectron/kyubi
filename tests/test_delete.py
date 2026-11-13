@@ -59,13 +59,14 @@ class TestDelete:
         )
 
         if isinstance(engine, Postgres):
-            with pytest.raises(NotImplementedError, match="DELETE.*ORDER BY.*LIMIT.*OFFSET"):
+            with pytest.raises(
+                NotImplementedError, match="DELETE.*ORDER BY.*LIMIT.*OFFSET"
+            ):
                 query.build()
             return
 
         assert query.build() == (
-            "DELETE FROM test_table WHERE age >= 18 "
-            "ORDER BY id desc LIMIT 2 OFFSET 1"
+            "DELETE FROM test_table WHERE age >= 18 ORDER BY id desc LIMIT 2 OFFSET 1"
         )
 
     @pytest.mark.parametrize("offset", [0, 1])

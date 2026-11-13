@@ -1,7 +1,6 @@
 import pytest
 
-from kyubi.fields import Field, OrderClause
-from kyubi.table import table
+from kyubi.fields import OrderClause
 
 
 class TestUpdate:
@@ -125,7 +124,5 @@ class TestUpdate:
 
         assert original.build() == "UPDATE test_table SET name = 'updated'"
         assert first.build() == "UPDATE test_table SET name = 'updated' WHERE id = 1"
-        assert second.build() == (
-            "UPDATE test_table SET name = 'updated' WHERE id = 2"
-        )
+        assert second.build() == ("UPDATE test_table SET name = 'updated' WHERE id = 2")
         assert first.build() == "UPDATE test_table SET name = 'updated' WHERE id = 1"
