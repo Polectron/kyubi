@@ -1,12 +1,14 @@
 from functools import singledispatchmethod
 
 from kyubi.engines.engine import Engine
+from kyubi.queries.delete import DeleteQuery
+from kyubi.queries.mixins import PaginationMixin
 from kyubi.queries.query import Query
 from kyubi.queries.select import GroupByQuery, SelectQuery
 
 
 class Postgres(Engine):
-    def _build_pagination(self, query: SelectQuery) -> str:
+    def _build_pagination(self, query: PaginationMixin) -> str:
         result = ""
         if query._limit is not None:
             result += self._build_limit(query)
@@ -21,6 +23,7 @@ class Postgres(Engine):
     @build.register
     def _(self, query: SelectQuery) -> str:
         q = self._build_select(query)
+        q += self._build_from(query)
         if query._conditions:
             q += self._build_conditions(query)
         if query._order:
@@ -31,6 +34,7 @@ class Postgres(Engine):
     @build.register
     def _(self, query: GroupByQuery) -> str:
         q = self._build_select(query)
+        q += self._build_from(query)
         if query._conditions:
             q += self._build_conditions(query)
         q += self._build_group_by(query)
@@ -39,4 +43,16 @@ class Postgres(Engine):
         if query._order:
             q += self._build_order(query)
         q += self._build_pagination(query)
+        return q
+
+    @build.register
+    def _(self, query: DeleteQuery) -> str:
+        if query._order or query._limit is not None or query._offset is not None:
+            raise NotImplementedError(
+                "PostgreSQL DELETE does not support ORDER BY, LIMIT, or OFFSET"
+            )
+        q = "DELETE"
+        q += self._build_from(query)
+        if query._conditions:
+            q += self._build_conditions(query)
         return q

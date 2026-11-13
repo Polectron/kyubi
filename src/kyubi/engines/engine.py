@@ -4,6 +4,8 @@ import abc
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING
 
+from kyubi.queries.delete import DeleteQuery
+from kyubi.queries.mixins import LimitMixin, OffsetMixin, OrderByMixin, WhereMixin
 from kyubi.queries.select import GroupByQuery, SelectQuery
 
 if TYPE_CHECKING:
@@ -12,18 +14,21 @@ if TYPE_CHECKING:
 
 class Engine(abc.ABC):
     def _build_select(self, query: SelectQuery) -> str:
-        return f"SELECT {', '.join(field.build(query._table_def) for field in query._select_fields)} FROM {query._table_def.table_name}{f' AS {query._table_def.alias}' if query._table_def.alias else ''}"
+        return f"SELECT {', '.join(field.build(query._table_def) for field in query._select_fields)}"
 
-    def _build_conditions(self, query: SelectQuery) -> str:
+    def _build_from(self, query: Query) -> str:
+        return f" FROM {query._table_def.table_name}{f' AS {query._table_def.alias}' if query._table_def.alias else ''}"
+
+    def _build_conditions(self, query: WhereMixin) -> str:
         return f" WHERE {' AND '.join(condition._value(query._table_def) for condition in query._conditions)}"
 
-    def _build_order(self, query: SelectQuery) -> str:
+    def _build_order(self, query: OrderByMixin) -> str:
         return f" ORDER BY {', '.join(order.build(query._table_def) for order in query._order)}"
 
-    def _build_limit(self, query: SelectQuery) -> str:
+    def _build_limit(self, query: LimitMixin) -> str:
         return f" LIMIT {query._limit}"
 
-    def _build_offset(self, query: SelectQuery) -> str:
+    def _build_offset(self, query: OffsetMixin) -> str:
         return f" OFFSET {query._offset}"
 
     def _build_group_by(self, query: GroupByQuery) -> str:
@@ -42,4 +47,8 @@ class Engine(abc.ABC):
 
     @build.register
     def _(self, query: GroupByQuery) -> str:
+        raise NotImplementedError
+
+    @build.register
+    def _(self, query: DeleteQuery) -> str:
         raise NotImplementedError

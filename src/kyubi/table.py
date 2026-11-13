@@ -4,6 +4,7 @@ from typing import Self
 from kyubi.engines.engine import Engine
 from kyubi.fields import Expression, Field
 from kyubi.queries import SelectQuery
+from kyubi.queries.delete import DeleteQuery
 from kyubi.tabledef import TableDef
 
 
@@ -35,10 +36,19 @@ class Table:
 
     def select(self, *args: Expression) -> SelectQuery:
         return SelectQuery(
-            TableDef(
-                table_name=self._table_name, engine=self._engine, alias=self._alias
-            ),
+            self._build_table_def(),
             self._build_fields(list(args)),
+        )
+
+    def delete(self, *args: Field) -> DeleteQuery:
+        return DeleteQuery(
+            self._build_table_def(),
+            list(args)
+        )
+
+    def _build_table_def(self) -> TableDef:
+        return TableDef(
+            table_name=self._table_name, engine=self._engine, alias=self._alias
         )
 
     def _build_fields(self, fields: list[Expression]) -> list[Expression]:

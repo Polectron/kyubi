@@ -5,9 +5,7 @@ A python SQL query builder
 ## Engines
 
 Set a table's `Meta.engine` to `kyubi.engines.sqlite.SQLite()` or
-`kyubi.engines.postgres.Postgres()` to generate SQL for that database. Both
-support select and grouped select queries. PostgreSQL also supports `OFFSET`
-without a `LIMIT`; the SQLite engine requires a limit.
+`kyubi.engines.postgres.Postgres()` to generate SQL for that database.
 
 ## Tests
 
