@@ -2,6 +2,9 @@
 
 A python SQL query builder
 
+[!WARNING]
+**Disclaimer:** This project is not intended for production use and is provided for educational purposes only. It in no way tries to provide a fully-featured or secure SQL query builder. Use at your own risk.
+
 ## Engines
 
 Set a table's `Meta.engine` to `kyubi.engines.sqlite.SQLite()` or
