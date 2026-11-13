@@ -43,8 +43,8 @@ class Table:
             self._build_fields(list(args)),
         )
 
-    def delete(self, *args: Field) -> DeleteQuery:
-        return DeleteQuery(self._build_table_def(), list(args))
+    def delete(self) -> DeleteQuery:
+        return DeleteQuery(self._build_table_def())
 
     def insert(self, *args: dict[str, Operand]) -> InsertQuery:
         return InsertQuery(self._build_table_def(), list(args))
@@ -77,4 +77,4 @@ class AnonymousTable(Table):
     def __getattr__(self, name: str) -> Field:
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
-        return Field(name)
+        return Field(name)._bind(self._table_name, self._alias)

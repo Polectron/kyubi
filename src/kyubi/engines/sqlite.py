@@ -32,6 +32,8 @@ class SQLite(Engine):
     def _(self, query: SelectQuery) -> str:
         q = self._build_select(query)
         q += self._build_from(query)
+        if query._joins:
+            q += self._build_join(query)
         if query._conditions:
             q += self._build_conditions(query)
         if query._order:
@@ -43,6 +45,8 @@ class SQLite(Engine):
     def _(self, query: GroupByQuery) -> str:
         q = self._build_select(query)
         q += self._build_from(query)
+        if query._joins:
+            q += self._build_join(query)
         if query._conditions:
             q += self._build_conditions(query)
         q += self._build_group_by(query)
@@ -65,14 +69,14 @@ class SQLite(Engine):
             q += self._build_order(query)
         q += self._build_pagination(query)
         if query._returning:
-            q += self._build_returning(query)
+            q += self._build_returning(query, qualify="never")
         return q
 
     @build.register
     def _(self, query: InsertQuery) -> str:
         q = self._build_insert(query)
         if query._returning:
-            q += self._build_returning(query)
+            q += self._build_returning(query, qualify="never")
         return q
 
     @build.register
@@ -82,5 +86,5 @@ class SQLite(Engine):
             q += self._build_conditions(query)
         q += self._build_pagination(query)
         if query._returning:
-            q += self._build_returning(query)
+            q += self._build_returning(query, qualify="never")
         return q

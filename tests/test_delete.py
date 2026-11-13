@@ -5,6 +5,7 @@ from kyubi.fields import OrderClause
 
 
 class TestDelete:
+
     def test_delete_all_rows_without_where(self, t, sqlite_connection):
         query = t.delete()
         sqlite_connection.execute("CREATE TABLE test_table (id INTEGER)")

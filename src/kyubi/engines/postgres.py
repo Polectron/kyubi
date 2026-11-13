@@ -26,6 +26,8 @@ class Postgres(Engine):
     def _(self, query: SelectQuery) -> str:
         q = self._build_select(query)
         q += self._build_from(query)
+        if query._joins:
+            q += self._build_join(query)
         if query._conditions:
             q += self._build_conditions(query)
         if query._order:
@@ -37,6 +39,8 @@ class Postgres(Engine):
     def _(self, query: GroupByQuery) -> str:
         q = self._build_select(query)
         q += self._build_from(query)
+        if query._joins:
+            q += self._build_join(query)
         if query._conditions:
             q += self._build_conditions(query)
         q += self._build_group_by(query)

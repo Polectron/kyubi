@@ -31,10 +31,49 @@ class TestSelect:
             "SELECT age, id, name FROM test_table"
         )
 
-    def test_selects_fields_in_different_ways(self, t):
-        assert t.select(t.id, t.name, Field("age")).build() == (
-            "SELECT id, name, age FROM test_table"
-        )
+    def test_rejects_unbound_fields(self, t):
+        query = t.select(t.id, t.name, Field("age"))
+
+        with pytest.raises(ValueError, match="Unbound field.*age"):
+            query.build()
+
+    @pytest.mark.parametrize(
+        "clause",
+        [
+            "select",
+            "where",
+            "order",
+            "group",
+            "having",
+            "join",
+            "returning",
+            "insert",
+            "update",
+        ],
+    )
+    def test_rejects_unbound_fields_inside_expressions(self, t, clause):
+        field = Field("age")
+        if clause == "select":
+            query = t.select(field + 1)
+        elif clause == "where":
+            query = t.select(t.id).where(field > 1)
+        elif clause == "order":
+            query = t.select(t.id).order_by(OrderClause(field))
+        elif clause == "group":
+            query = t.select(t.id).group_by(field)
+        elif clause == "having":
+            query = t.select(t.id).group_by(t.id).having(field > 1)
+        elif clause == "join":
+            query = t.select(t.id).join(t.alias("other"), on=field == t.id)
+        elif clause == "returning":
+            query = t.update(age=1).returning(field)
+        elif clause == "insert":
+            query = t.insert({"age": field + 1})
+        else:
+            query = t.update(age=field + 1)
+
+        with pytest.raises(ValueError, match="Unbound field.*age"):
+            query.build()
 
     def test_preserves_repeated_fields(self, t):
         assert t.select(t.id, t.id).build() == "SELECT id, id FROM test_table"

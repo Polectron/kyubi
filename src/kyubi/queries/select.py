@@ -4,15 +4,11 @@ from typing import Self
 
 from kyubi.fields import Expression
 from kyubi.fields.expression import Operand, as_expression
-from kyubi.queries.mixins import (
-    OrderByMixin,
-    PaginationMixin,
-    WhereMixin,
-)
+from kyubi.queries.mixins import JoinMixin, OrderByMixin, PaginationMixin, WhereMixin
 from kyubi.tabledef import TableDef
 
 
-class SelectQuery(WhereMixin, OrderByMixin, PaginationMixin):
+class SelectQuery(WhereMixin, OrderByMixin, PaginationMixin, JoinMixin):
     def __init__(self, table_def: TableDef, fields: Sequence[Operand] | None = None):
         super().__init__(table_def)
         self._select_fields: list[Expression] = (
@@ -27,6 +23,7 @@ class GroupByQuery(SelectQuery):
     def __init__(self, source: SelectQuery, fields: Sequence[Expression]):
         source = deepcopy(source)
         super().__init__(source._table_def, source._select_fields)
+        self._joins = source._joins
         self._conditions = source._conditions
         self._order = source._order
         self._limit = source._limit

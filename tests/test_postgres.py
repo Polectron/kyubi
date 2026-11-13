@@ -50,6 +50,14 @@ def test_postgres_delete_with_and_without_conditions(postgres_table):
     )
 
 
+def test_postgres_returning_keeps_target_alias(postgres_table):
+    users = postgres_table.alias("u")
+
+    assert users.update(age=20).returning(users.age).build() == (
+        "UPDATE test_table AS u SET age = 20 RETURNING u.age"
+    )
+
+
 @pytest.mark.parametrize(
     "option", ["order", "limit", "zero_limit", "offset", "zero_offset"]
 )

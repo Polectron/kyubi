@@ -1,7 +1,6 @@
 from typing import Literal as TypingLiteral
 
-from kyubi.fields.expression import Expression
-from kyubi.tabledef import TableDef
+from kyubi.fields.expression import Expression, Qualification
 
 
 class Condition(Expression):
@@ -11,13 +10,14 @@ class Condition(Expression):
         self._op = op
         self._right = right
 
-    def _as_operand(self, table_def: TableDef) -> str:
-        return f"({self._value(table_def)})"
+    def _as_operand(self, *, qualify: Qualification = "alias") -> str:
+        return f"({self.build(alias=False, qualify=qualify)})"
 
-    def _value(self, table_def: TableDef) -> str:
+    def build(self, *, alias: bool = True, qualify: Qualification = "alias") -> str:
         return (
-            f"{self._left._as_operand(table_def)} "
-            f"{self._op} {self._right._as_operand(table_def)}"
+            f"{self._left._as_operand(qualify=qualify)} "
+            f"{self._op} {self._right._as_operand(qualify=qualify)}"
+            f"{self._build_alias() if alias else ''}"
         )
 
 
@@ -26,5 +26,5 @@ class OrderClause:
         self._field = field
         self._order = order
 
-    def build(self, table_def: TableDef) -> str:
-        return f"{self._field._value(table_def)} {self._order}"
+    def build(self, *, qualify: Qualification = "alias") -> str:
+        return f"{self._field.build(alias=False, qualify=qualify)} {self._order}"

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import abc
 from copy import copy
+from typing import Literal as TypingLiteral
 from typing import Self
 
-from kyubi.tabledef import TableDef
-
 type Operand = Expression | str | float | bool | None
+type Qualification = TypingLiteral["alias", "always", "never"]
 
 
 class Expression(abc.ABC):
@@ -22,14 +22,11 @@ class Expression(abc.ABC):
         return f" AS {self._alias}" if self._alias else ""
 
     @abc.abstractmethod
-    def _value(self, table_def: TableDef) -> str:
+    def build(self, *, alias: bool = True, qualify: Qualification = "alias") -> str:
         raise NotImplementedError
 
-    def _as_operand(self, table_def: TableDef) -> str:
-        return self._value(table_def)
-
-    def build(self, table_def: TableDef) -> str:
-        return f"{self._value(table_def)}{self._build_alias()}"
+    def _as_operand(self, *, qualify: Qualification = "alias") -> str:
+        return self.build(alias=False, qualify=qualify)
 
     def __add__(self, other: Operand) -> Addition:
         return Addition(self, other)
@@ -113,8 +110,10 @@ class IsIn(Expression):
         self._left = as_expression(left)
         self._to_check = [as_expression(i) for i in to_check]
 
-    def _value(self, table_def: TableDef) -> str:
-        return f"{self._left._as_operand(table_def)} IN ({', '.join([i._as_operand(table_def) for i in self._to_check])})"
+    def build(self, *, alias: bool = True, qualify: Qualification = "alias") -> str:
+        left = self._left._as_operand(qualify=qualify)
+        values = ", ".join(i._as_operand(qualify=qualify) for i in self._to_check)
+        return f"{left} IN ({values}){self._build_alias() if alias else ''}"
 
 
 class Between(Expression):
@@ -124,8 +123,11 @@ class Between(Expression):
         self._a = as_expression(a)
         self._b = as_expression(b)
 
-    def _value(self, table_def: TableDef) -> str:
-        return f"{self._left._as_operand(table_def)} BETWEEN {self._a._as_operand(table_def)} AND {self._b._as_operand(table_def)}"
+    def build(self, *, alias: bool = True, qualify: Qualification = "alias") -> str:
+        left = self._left._as_operand(qualify=qualify)
+        a = self._a._as_operand(qualify=qualify)
+        b = self._b._as_operand(qualify=qualify)
+        return f"{left} BETWEEN {a} AND {b}{self._build_alias() if alias else ''}"
 
 
 class _BinaryExpression(Expression):
@@ -136,13 +138,13 @@ class _BinaryExpression(Expression):
         self._left = as_expression(left)
         self._right = as_expression(right)
 
-    def _as_operand(self, table_def: TableDef) -> str:
-        return f"({self._value(table_def)})"
+    def _as_operand(self, *, qualify: Qualification = "alias") -> str:
+        return f"({self.build(alias=False, qualify=qualify)})"
 
-    def _value(self, table_def: TableDef) -> str:
-        left = self._left._as_operand(table_def)
-        right = self._right._as_operand(table_def)
-        return f"{left} {self._operator} {right}"
+    def build(self, *, alias: bool = True, qualify: Qualification = "alias") -> str:
+        left = self._left._as_operand(qualify=qualify)
+        right = self._right._as_operand(qualify=qualify)
+        return f"{left} {self._operator} {right}{self._build_alias() if alias else ''}"
 
 
 class And(_BinaryExpression):
@@ -225,14 +227,14 @@ class _UnaryExpression(Expression):
         super().__init__(alias)
         self._operand = operand
 
-    def _as_operand(self, table_def: TableDef) -> str:
-        return f"({self._value(table_def)})"
+    def _as_operand(self, *, qualify: Qualification = "alias") -> str:
+        return f"({self.build(alias=False, qualify=qualify)})"
 
-    def _value(self, table_def: TableDef) -> str:
-        operand = self._operand._as_operand(table_def)
+    def build(self, *, alias: bool = True, qualify: Qualification = "alias") -> str:
+        operand = self._operand._as_operand(qualify=qualify)
         if self._operator in {"+", "-"} and operand.startswith(("+", "-")):
             operand = f"({operand})"
-        return f"{self._operator}{operand}"
+        return f"{self._operator}{operand}{self._build_alias() if alias else ''}"
 
 
 class Positive(_UnaryExpression):
@@ -256,9 +258,11 @@ class Literal(Expression):
         super().__init__(alias)
         self._literal = value
 
-    def _value(self, table_def: TableDef) -> str:
+    def build(self, *, alias: bool = True, qualify: Qualification = "alias") -> str:
         if isinstance(self._literal, str):
-            return f"'{escape_string(self._literal)}'"
-        if self._literal is None:
-            return "NULL"
-        return str(self._literal)
+            value = f"'{escape_string(self._literal)}'"
+        elif self._literal is None:
+            value = "NULL"
+        else:
+            value = str(self._literal)
+        return f"{value}{self._build_alias() if alias else ''}"
