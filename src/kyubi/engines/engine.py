@@ -4,7 +4,9 @@ import abc
 from functools import singledispatchmethod
 from typing import TYPE_CHECKING
 
+from kyubi.fields.expression import as_expression
 from kyubi.queries.delete import DeleteQuery
+from kyubi.queries.insert import InsertQuery
 from kyubi.queries.mixins import LimitMixin, OffsetMixin, OrderByMixin, WhereMixin
 from kyubi.queries.select import GroupByQuery, SelectQuery
 
@@ -18,6 +20,17 @@ class Engine(abc.ABC):
 
     def _build_from(self, query: Query) -> str:
         return f" FROM {query._table_def.table_name}{f' AS {query._table_def.alias}' if query._table_def.alias else ''}"
+
+    def _build_into(self, query: Query) -> str:
+        return f" INTO {query._table_def.table_name}{f' AS {query._table_def.alias}' if query._table_def.alias else ''}"
+
+    def _build_insert(self, query: InsertQuery) -> str:
+        keys = query._to_insert[0].keys()
+        rows = [
+            f"({', '.join(as_expression(row[key])._as_operand(query._table_def) for key in keys)})"
+            for row in query._to_insert
+        ]
+        return f"INSERT{self._build_into(query)} ({', '.join(keys)}) VALUES {', '.join(rows)}"
 
     def _build_conditions(self, query: WhereMixin) -> str:
         return f" WHERE {' AND '.join(condition._value(query._table_def) for condition in query._conditions)}"
@@ -51,4 +64,8 @@ class Engine(abc.ABC):
 
     @build.register
     def _(self, query: DeleteQuery) -> str:
+        raise NotImplementedError
+
+    @build.register
+    def _(self, query: InsertQuery) -> str:
         raise NotImplementedError

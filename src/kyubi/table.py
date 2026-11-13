@@ -3,8 +3,10 @@ from typing import Self
 
 from kyubi.engines.engine import Engine
 from kyubi.fields import Expression, Field
+from kyubi.fields.expression import Operand
 from kyubi.queries import SelectQuery
 from kyubi.queries.delete import DeleteQuery
+from kyubi.queries.insert import InsertQuery
 from kyubi.tabledef import TableDef
 
 
@@ -45,6 +47,9 @@ class Table:
             self._build_table_def(),
             list(args)
         )
+
+    def insert(self, *args: dict[str, Operand]) -> InsertQuery:
+        return InsertQuery(self._build_table_def(), list(args))
 
     def _build_table_def(self) -> TableDef:
         return TableDef(

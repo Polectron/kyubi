@@ -2,6 +2,7 @@ from functools import singledispatchmethod
 
 from kyubi.engines.engine import Engine
 from kyubi.queries.delete import DeleteQuery
+from kyubi.queries.insert import InsertQuery
 from kyubi.queries.mixins import PaginationMixin
 from kyubi.queries.query import Query
 from kyubi.queries.select import GroupByQuery, SelectQuery
@@ -63,3 +64,7 @@ class SQLite(Engine):
             q += self._build_order(query)
         q += self._build_pagination(query)
         return q
+
+    @build.register
+    def _(self, query: InsertQuery) -> str:
+        return self._build_insert(query)
