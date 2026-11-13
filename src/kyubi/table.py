@@ -7,6 +7,7 @@ from kyubi.fields.expression import Operand
 from kyubi.queries import SelectQuery
 from kyubi.queries.delete import DeleteQuery
 from kyubi.queries.insert import InsertQuery
+from kyubi.queries.update import UpdateQuery
 from kyubi.tabledef import TableDef
 
 
@@ -50,6 +51,9 @@ class Table:
 
     def insert(self, *args: dict[str, Operand]) -> InsertQuery:
         return InsertQuery(self._build_table_def(), list(args))
+
+    def update(self, **kwargs: Operand) -> UpdateQuery:
+        return UpdateQuery(self._build_table_def(), kwargs)
 
     def _build_table_def(self) -> TableDef:
         return TableDef(

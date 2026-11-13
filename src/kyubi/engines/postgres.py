@@ -6,6 +6,7 @@ from kyubi.queries.insert import InsertQuery
 from kyubi.queries.mixins import PaginationMixin
 from kyubi.queries.query import Query
 from kyubi.queries.select import GroupByQuery, SelectQuery
+from kyubi.queries.update import UpdateQuery
 
 
 class Postgres(Engine):
@@ -61,3 +62,11 @@ class Postgres(Engine):
     @build.register
     def _(self, query: InsertQuery) -> str:
         return self._build_insert(query)
+
+    @build.register
+    def _(self, query: UpdateQuery) -> str:
+        q = self._build_update(query)
+        if query._conditions:
+            q += self._build_conditions(query)
+        q += self._build_pagination(query)
+        return q
