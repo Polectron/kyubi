@@ -57,16 +57,26 @@ class Postgres(Engine):
         q += self._build_from(query)
         if query._conditions:
             q += self._build_conditions(query)
+        if query._returning:
+            q += self._build_returning(query)
         return q
 
     @build.register
     def _(self, query: InsertQuery) -> str:
-        return self._build_insert(query)
+        q = self._build_insert(query)
+        if query._returning:
+            q += self._build_returning(query)
+        return q
 
     @build.register
     def _(self, query: UpdateQuery) -> str:
+        if query._limit is not None or query._offset is not None:
+            raise NotImplementedError(
+                "PostgreSQL UPDATE does not support LIMIT or OFFSET"
+            )
         q = self._build_update(query)
         if query._conditions:
             q += self._build_conditions(query)
-        q += self._build_pagination(query)
+        if query._returning:
+            q += self._build_returning(query)
         return q

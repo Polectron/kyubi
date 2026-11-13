@@ -1,5 +1,6 @@
 import pytest
 
+from kyubi.engines.postgres import Postgres
 from kyubi.fields import OrderClause
 
 
@@ -92,11 +93,14 @@ class TestUpdate:
         ]
 
     @pytest.mark.parametrize("offset", [0, 1])
-    def test_offset_requires_limit(self, t, offset):
-        with pytest.raises(ValueError):
+    def test_offset_requires_limit(self, t, offset, engine):
+        error = NotImplementedError if isinstance(engine, Postgres) else ValueError
+        with pytest.raises(error):
             t.update(age=18).offset(offset).build()
 
-    def test_optional_limit_and_offset_execute(self, t, sqlite_connection):
+    def test_optional_limit_and_offset_execute(self, t, sqlite_connection, engine):
+        if isinstance(engine, Postgres):
+            pytest.skip("PostgreSQL UPDATE does not support LIMIT or OFFSET")
         if not sqlite_connection.execute(
             "SELECT sqlite_compileoption_used('ENABLE_UPDATE_DELETE_LIMIT')"
         ).fetchone()[0]:

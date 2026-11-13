@@ -70,6 +70,48 @@ def test_postgres_delete_rejects_unsupported_options(postgres_table, option):
         query.build()
 
 
+@pytest.mark.parametrize("option", ["limit", "zero_limit", "offset", "zero_offset"])
+def test_postgres_update_rejects_unsupported_options(postgres_table, option):
+    query = postgres_table.update(age=18)
+    if option == "limit":
+        query = query.limit(2)
+    elif option == "zero_limit":
+        query = query.limit(0)
+    elif option == "offset":
+        query = query.offset(1)
+    else:
+        query = query.offset(0)
+
+    with pytest.raises(NotImplementedError, match="UPDATE.*LIMIT.*OFFSET"):
+        query.returning(postgres_table.id).build()
+
+
+@pytest.mark.parametrize("operation", ["insert", "update", "delete"])
+def test_postgres_returning_aliased_target(
+    postgres_table, request, db_connection, operation
+):
+    if request.config.getoption("--engine") != "postgres":
+        pytest.skip("requires a PostgreSQL test database")
+
+    db_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
+    db_connection.execute("INSERT INTO test_table VALUES (1, 18)")
+    users = postgres_table.alias("u")
+
+    if operation == "insert":
+        query = users.insert({"id": 2, "age": 20})
+        expected = [(2, 20)]
+    elif operation == "update":
+        query = users.update(age=19).where(users.id == 1)
+        expected = [(1, 19)]
+    else:
+        query = users.delete().where(users.id == 1)
+        expected = [(1, 18)]
+
+    returned = query.returning(users.id).returning(users.age)
+    assert " RETURNING u.id, u.age" in returned.build()
+    assert db_connection.execute(returned.build()).fetchall() == expected
+
+
 def test_postgres_queries_execute(postgres_table, request, db_connection):
     if request.config.getoption("--engine") != "postgres":
         pytest.skip("requires a PostgreSQL test database")
