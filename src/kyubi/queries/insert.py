@@ -1,9 +1,9 @@
 from kyubi.fields.expression import Operand
-from kyubi.queries import Query
+from kyubi.queries.mixins import ReturningMixin
 from kyubi.tabledef import TableDef
 
 
-class InsertQuery(Query):
+class InsertQuery(ReturningMixin):
     def __init__(self, table_def: TableDef, values: list[dict[str, Operand]]):
         super().__init__(table_def)
         if not values or not values[0]:

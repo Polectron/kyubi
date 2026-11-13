@@ -37,6 +37,8 @@ class SQLite(Engine):
         if query._order:
             q += self._build_order(query)
         q += self._build_pagination(query)
+        if query._returning:
+            q += self._build_returning(query)
         return q
 
     @build.register
@@ -51,6 +53,8 @@ class SQLite(Engine):
         if query._order:
             q += self._build_order(query)
         q += self._build_pagination(query)
+        if query._returning:
+            q += self._build_returning(query)
         return q
 
     @build.register
@@ -64,12 +68,16 @@ class SQLite(Engine):
                 raise ValueError("ORDER BY requires a LIMIT in SQLite DELETE")
             q += self._build_order(query)
         q += self._build_pagination(query)
+        if query._returning:
+            q += self._build_returning(query)
         return q
 
     @build.register
     def _(self, query: InsertQuery) -> str:
-        return self._build_insert(query)
-
+        q = self._build_insert(query)
+        if query._returning:
+            q += self._build_returning(query)
+        return q
 
     @build.register
     def _(self, query: UpdateQuery) -> str:
@@ -77,4 +85,6 @@ class SQLite(Engine):
         if query._conditions:
             q += self._build_conditions(query)
         q += self._build_pagination(query)
+        if query._returning:
+            q += self._build_returning(query)
         return q

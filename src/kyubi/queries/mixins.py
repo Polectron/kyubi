@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import Self
 
-from kyubi.fields import Expression, OrderClause
+from kyubi.fields import Expression, Field, OrderClause
 from kyubi.fields.expression import Operand, as_expression
 from kyubi.queries.query import Query
 from kyubi.tabledef import TableDef
@@ -53,3 +53,14 @@ class OffsetMixin(Query):
 
 class PaginationMixin(LimitMixin, OffsetMixin):
     pass
+
+
+class ReturningMixin(Query):
+    def __init__(self, table_def: TableDef):
+        super().__init__(table_def)
+        self._returning: list[Field] = []
+
+    def returning(self, *args: Field) -> Self:
+        new_query = deepcopy(self)
+        new_query._returning.extend(args)
+        return new_query

@@ -7,7 +7,13 @@ from typing import TYPE_CHECKING
 from kyubi.fields.expression import as_expression
 from kyubi.queries.delete import DeleteQuery
 from kyubi.queries.insert import InsertQuery
-from kyubi.queries.mixins import LimitMixin, OffsetMixin, OrderByMixin, WhereMixin
+from kyubi.queries.mixins import (
+    LimitMixin,
+    OffsetMixin,
+    OrderByMixin,
+    ReturningMixin,
+    WhereMixin,
+)
 from kyubi.queries.select import GroupByQuery, SelectQuery
 from kyubi.queries.update import UpdateQuery
 
@@ -37,7 +43,10 @@ class Engine(abc.ABC):
         return f"INSERT{self._build_into(query)} ({', '.join(keys)}) VALUES {', '.join(rows)}"
 
     def _build_update(self, query: UpdateQuery) -> str:
-        updates = [f"{k} = {as_expression(v)._as_operand(query._table_def)}" for k, v in query._to_update.items()]
+        updates = [
+            f"{k} = {as_expression(v)._as_operand(query._table_def)}"
+            for k, v in query._to_update.items()
+        ]
         q = f"UPDATE {self._table_name(query)} SET {', '.join(updates)}"
         return q
 
@@ -58,6 +67,9 @@ class Engine(abc.ABC):
 
     def _build_having(self, query: GroupByQuery) -> str:
         return f" HAVING {' AND '.join(condition._value(query._table_def) for condition in query._having)}"
+
+    def _build_returning(self, query: ReturningMixin) -> str:
+        return f" RETURNING {', '.join(field.build(query._table_def) for field in query._returning)}"
 
     @singledispatchmethod
     def build(self, query: Query) -> str:

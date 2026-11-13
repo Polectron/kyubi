@@ -44,10 +44,7 @@ class Table:
         )
 
     def delete(self, *args: Field) -> DeleteQuery:
-        return DeleteQuery(
-            self._build_table_def(),
-            list(args)
-        )
+        return DeleteQuery(self._build_table_def(), list(args))
 
     def insert(self, *args: dict[str, Operand]) -> InsertQuery:
         return InsertQuery(self._build_table_def(), list(args))
