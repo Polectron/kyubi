@@ -26,7 +26,7 @@ from kyubi.fields.expression import (
 
 class TestFieldOperations:
     def test_native_arithmetic_executes_with_correct_operand_order(
-        self, t, sqlite_connection
+        self, t, db_connection
     ):
         users = t.alias("u")
         query = users.select(
@@ -40,9 +40,9 @@ class TestFieldOperations:
             20 / users.age,
         )
 
-        sqlite_connection.execute("CREATE TABLE test_table (age INTEGER)")
-        sqlite_connection.execute("INSERT INTO test_table VALUES (10)")
-        assert sqlite_connection.execute(query.build()).fetchall() == [
+        db_connection.execute("CREATE TABLE test_table (age INTEGER)")
+        db_connection.execute("INSERT INTO test_table VALUES (10)")
+        assert db_connection.execute(query.build()).fetchall() == [
             (11, 11, 9, 10, 20, 20, 5, 2)
         ]
 
@@ -253,18 +253,16 @@ class TestFieldOperations:
 
 
 class TestUnaryOperations:
-    def test_unary_expressions_execute_with_correct_grouping(
-        self, t, sqlite_connection
-    ):
+    def test_unary_expressions_execute_with_correct_grouping(self, t, db_connection):
         users = t.alias("u")
         negative_id = -users.id
         query = users.select(-(users.id + users.age), -Literal(-1), -negative_id).where(
             Condition(users.age, ">", Literal(18)).not_()
         )
 
-        sqlite_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
-        sqlite_connection.execute("INSERT INTO test_table VALUES (2, 10), (3, 20)")
-        assert sqlite_connection.execute(query.build()).fetchall() == [(-12, 1, 2)]
+        db_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
+        db_connection.execute("INSERT INTO test_table VALUES (2, 10), (3, 20)")
+        assert db_connection.execute(query.build()).fetchall() == [(-12, 1, 2)]
 
     def test_numeric_unary_operations_with_table_and_output_aliases(self, t):
         users = t.alias("u")

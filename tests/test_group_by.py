@@ -1,10 +1,11 @@
 import pytest
 
+from kyubi.engines.sqlite import SQLite
 from kyubi.fields import OrderClause
 
 
 class TestGroupBy:
-    def test_group_by_and_having_execute(self, t, sqlite_connection):
+    def test_group_by_and_having_execute(self, t, db_connection):
         users = t.alias("u")
         query = (
             users.select(users.age, users.name)
@@ -15,28 +16,22 @@ class TestGroupBy:
             .order_by(OrderClause(users.age), OrderClause(users.name))
         )
 
-        sqlite_connection.execute(
+        db_connection.execute(
             "CREATE TABLE test_table (id INTEGER, age INTEGER, name TEXT)"
         )
-        sqlite_connection.executemany(
-            "INSERT INTO test_table VALUES (?, ?, ?)",
-            [
-                (1, 18, "Alice"),
-                (2, 18, "Alice"),
-                (3, 18, "Bob"),
-                (4, 17, "Alice"),
-                (5, 20, "Alice"),
-                (-1, 30, "Alice"),
-            ],
+        db_connection.execute(
+            "INSERT INTO test_table VALUES "
+            "(1, 18, 'Alice'), (2, 18, 'Alice'), (3, 18, 'Bob'), "
+            "(4, 17, 'Alice'), (5, 20, 'Alice'), (-1, 30, 'Alice')"
         )
-        assert sqlite_connection.execute(query.build()).fetchall() == [
+        assert db_connection.execute(query.build()).fetchall() == [
             (18, "Alice"),
             (18, "Bob"),
             (20, "Alice"),
         ]
 
     def test_group_by_preserves_select_where_and_order_when_executed(
-        self, t, sqlite_connection
+        self, t, db_connection
     ):
         users = t.alias("u")
         query = (
@@ -46,11 +41,9 @@ class TestGroupBy:
             .group_by(users.age)
         )
 
-        sqlite_connection.execute("CREATE TABLE test_table (age INTEGER)")
-        sqlite_connection.executemany(
-            "INSERT INTO test_table VALUES (?)", [(18,), (18,), (17,), (20,)]
-        )
-        assert sqlite_connection.execute(query.build()).fetchall() == [(20,), (18,)]
+        db_connection.execute("CREATE TABLE test_table (age INTEGER)")
+        db_connection.execute("INSERT INTO test_table VALUES (18), (18), (17), (20)")
+        assert db_connection.execute(query.build()).fetchall() == [(20,), (18,)]
 
     def test_groups_by_one_field(self, t):
         query = t.select(t.age).group_by(t.age)
@@ -107,28 +100,39 @@ class TestGroupBy:
         )
         assert original.build() == "SELECT age FROM test_table LIMIT 5"
 
-    def test_group_by_preserves_offset_and_executes(self, t, sqlite_connection):
+    def test_group_by_preserves_offset_and_executes(self, t, db_connection):
         original = t.select(t.age).order_by(OrderClause(t.age)).limit(2).offset(1)
         query = original.group_by(t.age)
-        sqlite_connection.execute("CREATE TABLE test_table (age INTEGER)")
-        sqlite_connection.executemany(
-            "INSERT INTO test_table VALUES (?)", [(20,), (18,), (18,), (19,), (21,)]
+        db_connection.execute("CREATE TABLE test_table (age INTEGER)")
+        db_connection.execute(
+            "INSERT INTO test_table VALUES (20), (18), (18), (19), (21)"
         )
 
         assert query.build() == (
             "SELECT age FROM test_table GROUP BY age ORDER BY age asc LIMIT 2 OFFSET 1"
         )
-        assert sqlite_connection.execute(query.build()).fetchall() == [(19,), (20,)]
+        assert db_connection.execute(query.build()).fetchall() == [(19,), (20,)]
         assert original.build() == (
             "SELECT age FROM test_table ORDER BY age asc LIMIT 2 OFFSET 1"
         )
 
     @pytest.mark.parametrize("offset", [0, 1])
-    def test_grouped_offset_requires_limit_in_sqlite(self, t, offset):
+    def test_grouped_offset_without_limit(self, t, engine, db_connection, offset):
         query = t.select(t.age).offset(offset).group_by(t.age)
 
-        with pytest.raises(ValueError, match="OFFSET requires a LIMIT in SQLite"):
-            query.build()
+        if isinstance(engine, SQLite):
+            with pytest.raises(ValueError, match="OFFSET requires a LIMIT in SQLite"):
+                query.build()
+        else:
+            db_connection.execute("CREATE TABLE test_table (age INTEGER)")
+            db_connection.execute("INSERT INTO test_table VALUES (18), (18)")
+            assert (
+                query.build()
+                == f"SELECT age FROM test_table GROUP BY age OFFSET {offset}"
+            )
+            assert db_connection.execute(query.build()).fetchall() == (
+                [(18,)] if offset == 0 else []
+            )
 
     def test_limit_and_offset_after_group_by(self, t):
         original = t.select(t.age).group_by(t.age)

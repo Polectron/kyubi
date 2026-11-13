@@ -2,8 +2,10 @@ import operator
 import re
 from typing import assert_type
 
+import psycopg
 import pytest
 
+from kyubi.engines.sqlite import SQLite
 from kyubi.fields import (
     Condition,
     Equal,
@@ -208,7 +210,7 @@ class TestWhere:
             query.build(),
         )
 
-    def test_is_in_and_between_execute_with_table_alias(self, t, sqlite_connection):
+    def test_is_in_and_between_execute_with_table_alias(self, t, db_connection):
         users = t.alias("u")
         query = users.select(users.id).where(
             users.id.is_in(1, 2, 3) & users.age.between(18, 65)
@@ -217,14 +219,14 @@ class TestWhere:
 
         assert "u.id IN (1, 2, 3)" in sql
         assert "u.age BETWEEN 18 AND 65" in sql
-        sqlite_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
-        sqlite_connection.execute(
+        db_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
+        db_connection.execute(
             "INSERT INTO test_table VALUES (1, 17), (2, 18), (3, 65), (4, 30)"
         )
-        assert sqlite_connection.execute(sql).fetchall() == [(2,), (3,)]
+        assert db_connection.execute(sql).fetchall() == [(2,), (3,)]
 
     @pytest.mark.parametrize("group_or_first", [True, False])
-    def test_and_or_grouping_executes(self, t, sqlite_connection, group_or_first):
+    def test_and_or_grouping_executes(self, t, db_connection, group_or_first):
         if group_or_first:
             condition = ((t.id == 1) | (t.id == 2)) & (t.age >= 18)
             expected = [(2,)]
@@ -233,11 +235,9 @@ class TestWhere:
             expected = [(1,), (2,)]
         query = t.select(t.id).where(condition).order_by(OrderClause(t.id))
 
-        sqlite_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
-        sqlite_connection.execute(
-            "INSERT INTO test_table VALUES (1, 10), (2, 20), (3, 20)"
-        )
-        assert sqlite_connection.execute(query.build()).fetchall() == expected
+        db_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
+        db_connection.execute("INSERT INTO test_table VALUES (1, 10), (2, 20), (3, 20)")
+        assert db_connection.execute(query.build()).fetchall() == expected
 
     @pytest.mark.parametrize(
         ("condition", "expected"),
@@ -250,16 +250,14 @@ class TestWhere:
             (lambda t: t.age != None, [(1,), (2,)]),
         ],
     )
-    def test_comparison_queries_execute(
-        self, t, sqlite_connection, condition, expected
-    ):
+    def test_comparison_queries_execute(self, t, db_connection, condition, expected):
         query = t.select(t.id).where(condition(t)).order_by(OrderClause(t.id))
 
-        sqlite_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
-        sqlite_connection.execute(
+        db_connection.execute("CREATE TABLE test_table (id INTEGER, age INTEGER)")
+        db_connection.execute(
             "INSERT INTO test_table VALUES (1, 10), (2, 18), (3, NULL)"
         )
-        assert sqlite_connection.execute(query.build()).fetchall() == expected
+        assert db_connection.execute(query.build()).fetchall() == expected
 
 
 class TestOrderBy:
@@ -282,11 +280,23 @@ class TestOrderBy:
 
 class TestOffset:
     @pytest.mark.parametrize("offset", [0, 2])
-    def test_offset_requires_limit_in_sqlite(self, t, offset):
-        query = t.select(t.id).offset(offset)
+    def test_offset_without_limit(self, t, engine, db_connection, offset):
+        query = t.select(t.id).order_by(OrderClause(t.id)).offset(offset)
 
-        with pytest.raises(ValueError, match="OFFSET requires a LIMIT in SQLite"):
-            query.build()
+        if isinstance(engine, SQLite):
+            with pytest.raises(ValueError, match="OFFSET requires a LIMIT in SQLite"):
+                query.build()
+        else:
+            db_connection.execute("CREATE TABLE test_table (id INTEGER)")
+            db_connection.execute("INSERT INTO test_table VALUES (1), (2), (3)")
+            assert (
+                query.build()
+                == f"SELECT id FROM test_table ORDER BY id asc OFFSET {offset}"
+            )
+            assert (
+                db_connection.execute(query.build()).fetchall()
+                == [(1,), (2,), (3,)][offset:]
+            )
 
     @pytest.mark.parametrize(("limit", "offset"), [(2, 0), (2, 1), (0, 1)])
     def test_offset_follows_limit_and_order(self, t, limit, offset):
@@ -299,14 +309,18 @@ class TestOffset:
     @pytest.mark.parametrize(
         ("limit", "expected"), [(2, [(2,), (3,)]), (0, []), (-1, [(2,), (3,), (4,)])]
     )
-    def test_offset_executes_with_limit(self, t, sqlite_connection, limit, expected):
+    def test_offset_executes_with_limit(
+        self, t, engine, db_connection, limit, expected
+    ):
         query = t.select(t.id).order_by(OrderClause(t.id)).limit(limit).offset(1)
-        sqlite_connection.execute("CREATE TABLE test_table (id INTEGER)")
-        sqlite_connection.executemany(
-            "INSERT INTO test_table VALUES (?)", [(3,), (1,), (4,), (2,)]
-        )
+        db_connection.execute("CREATE TABLE test_table (id INTEGER)")
+        db_connection.execute("INSERT INTO test_table VALUES (3), (1), (4), (2)")
 
-        assert sqlite_connection.execute(query.build()).fetchall() == expected
+        if limit < 0 and not isinstance(engine, SQLite):
+            with pytest.raises(psycopg.errors.InvalidRowCountInLimitClause):
+                db_connection.execute(query.build())
+        else:
+            assert db_connection.execute(query.build()).fetchall() == expected
 
     def test_offset_keeps_query_branches_independent(self, t):
         original = t.select(t.id).limit(3)
