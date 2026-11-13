@@ -7,13 +7,12 @@ from kyubi.fields.expression import Operand, as_expression
 from kyubi.queries.mixins import (
     OrderByMixin,
     PaginationMixin,
-    ReturningMixin,
     WhereMixin,
 )
 from kyubi.tabledef import TableDef
 
 
-class SelectQuery(WhereMixin, OrderByMixin, PaginationMixin, ReturningMixin):
+class SelectQuery(WhereMixin, OrderByMixin, PaginationMixin):
     def __init__(self, table_def: TableDef, fields: Sequence[Operand] | None = None):
         super().__init__(table_def)
         self._select_fields: list[Expression] = (

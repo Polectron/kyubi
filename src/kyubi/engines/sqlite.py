@@ -37,8 +37,6 @@ class SQLite(Engine):
         if query._order:
             q += self._build_order(query)
         q += self._build_pagination(query)
-        if query._returning:
-            q += self._build_returning(query)
         return q
 
     @build.register
@@ -53,8 +51,6 @@ class SQLite(Engine):
         if query._order:
             q += self._build_order(query)
         q += self._build_pagination(query)
-        if query._returning:
-            q += self._build_returning(query)
         return q
 
     @build.register
