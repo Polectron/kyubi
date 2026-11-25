@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "7ecef7f6a1674497d2c296f5e3be20a376055410",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "pyproject.toml",
+          "jsonpath": "$.project.version"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,126 @@
+name: Release and publish
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+    permissions:
+      contents: read
+
+  release_please:
+    needs: tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      prs_json: ${{ steps.release.outputs.prs_created }}
+      pr_branch: ${{ steps.pr_branch.outputs.branch }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - id: pr_branch
+        if: steps.release.outputs.prs_created != '' && steps.release.outputs.prs_created != '[]'
+        env:
+          RELEASE_PRS: ${{ steps.release.outputs.prs_created }}
+        run: echo "branch=$(jq -r '.[0].headBranchName' <<<"$RELEASE_PRS")" >> "$GITHUB_OUTPUT"
+
+  sync_release_lock:
+    needs: release_please
+    if: needs.release_please.outputs.prs_json != '' && needs.release_please.outputs.prs_json != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release_please.outputs.pr_branch }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: 0.13.9
+          enable-cache: true
+      - run: uv python install 3.13
+      - name: Sync and verify the lockfile version
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib
+          import tomllib
+
+          release_version = pathlib.Path("version.txt").read_text().strip()
+          project_version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
+          assert release_version == project_version, (release_version, project_version)
+          PY
+          uv lock
+          python3 - <<'PY'
+          import pathlib
+          import tomllib
+
+          release_version = pathlib.Path("version.txt").read_text().strip()
+          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]
+          lock = tomllib.loads(pathlib.Path("uv.lock").read_text())
+          locked_project = next(package for package in lock["package"] if package["name"] == project["name"])
+          assert release_version == project["version"] == locked_project["version"], (
+              release_version, project["version"], locked_project["version"]
+          )
+          PY
+          if git diff --quiet -- uv.lock; then
+            echo "uv.lock already matches the release version"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add uv.lock
+            git commit -m "chore: sync uv.lock with release version"
+            git push origin "HEAD:${PR_BRANCH}"
+          fi
+        env:
+          PR_BRANCH: ${{ needs.release_please.outputs.pr_branch }}
+
+  publish:
+    needs: release_please
+    if: needs.release_please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release_please.outputs.tag_name }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: 0.13.9
+          enable-cache: true
+      - run: uv python install 3.13
+      - name: Verify release metadata and lockfile
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import tomllib
+
+          release_version = pathlib.Path("version.txt").read_text().strip()
+          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]
+          lock = tomllib.loads(pathlib.Path("uv.lock").read_text())
+          locked_project = next(package for package in lock["package"] if package["name"] == project["name"])
+          assert release_version == project["version"] == locked_project["version"], (
+              release_version, project["version"], locked_project["version"]
+          )
+          PY
+          uv lock --check
+      - run: uv build --python 3.13
+      - name: Publish to private PyPI
+        env:
+          UV_PUBLISH_USERNAME: githubci
+          UV_PUBLISH_PASSWORD: ${{ secrets.PIPY_PASSWORD }}
+        run: uv publish --publish-url https://pipy.polectron.xyz/githubci/dev/ dist/*
